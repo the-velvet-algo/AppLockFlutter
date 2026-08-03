@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 35
     namespace "com.applockFlutter"
 
     compileOptions {
@@ -25,7 +25,7 @@ android {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId "com.applockFlutter"
         minSdkVersion 26
-        targetSdkVersion 33
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0"
     }

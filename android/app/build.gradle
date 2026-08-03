@@ -26,8 +26,8 @@ android {
         applicationId "com.applockFlutter"
         minSdkVersion 26
         targetSdkVersion 33
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+        versionCode 1
+        versionName "1.0"
     }
 
     buildTypes {

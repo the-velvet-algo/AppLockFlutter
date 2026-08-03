@@ -13,15 +13,15 @@ subprojects {
 subprojects {
     afterEvaluate { project ->
         if (project.plugins.hasPlugin("com.android.library")) {
-            project.android {
-                if (namespace == null) {
-                    namespace = groovy.xml.XmlSlurper().parse(file("$projectDir/src/main/AndroidManifest.xml")).@package.toString()
-                }
+            def androidExt = project.android
+            if (androidExt.namespace == null) {
+                def manifestFile = project.file("${project.projectDir}/src/main/AndroidManifest.xml")
+                def packageName = new groovy.xml.XmlSlurper().parse(manifestFile).@package.toString()
+                androidExt.namespace = packageName
             }
         }
     }
 }
-
 subprojects {
     project.evaluationDependsOn(':app')
 }

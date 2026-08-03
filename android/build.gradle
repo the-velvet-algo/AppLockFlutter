@@ -12,6 +12,17 @@ subprojects {
 subprojects {
     project.evaluationDependsOn(':app')
 }
+subprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin("com.android.library")) {
+            project.android {
+                if (namespace == null) {
+                    namespace = groovy.xml.XmlSlurper().parse(file("$projectDir/src/main/AndroidManifest.xml")).@package.toString()
+                }
+            }
+        }
+    }
+}
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir

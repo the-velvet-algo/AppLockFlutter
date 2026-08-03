@@ -55,5 +55,5 @@ dependencies {
     implementation 'androidx.navigation:navigation-fragment-ktx:2.5.2'
     implementation 'androidx.navigation:navigation-ui-ktx:2.5.2'
 
-    implementation 'com.andrognito.pinlockview:pinlockview:2.1.0'
+    implementation 'com.github.aritraroy:PinLockView:2.1.0'
 }

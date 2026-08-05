@@ -15,7 +15,7 @@ jobs:
 
       - run: flutter pub get
       - run: flutter build apk --release --split-per-abi
-
+      - run: flutter pub upgrade --major-versions
       - uses: actions/upload-artifact@v4
         with:
           name: release-apks

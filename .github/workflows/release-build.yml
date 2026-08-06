@@ -13,9 +13,14 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Install required Android SDK platform and build-tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager | head -1)
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-37" "build-tools;37.0.0" "ndk;28.2.13676358"
+
       - run: flutter pub get
       - run: flutter pub upgrade --major-versions
-      - run: flutter build apk --debug
       - run: flutter build apk --release --split-per-abi
       - uses: actions/upload-artifact@v4
         with:

@@ -120,3 +120,4 @@ flutter:
   # see https://flutter.dev/custom-fonts/#from-packages
 dependency_overrides:
   archive: ^4.0.7
+  permission_handler_android: 13.0.0

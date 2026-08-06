@@ -4,73 +4,90 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0A0A0A"
-    >
+    android:background="@drawable/lock_screen_bg">
 
+    <!-- Circular ring behind the app icon -->
+    <View
+        android:id="@+id/avatar_ring"
+        android:layout_width="104dp"
+        android:layout_height="104dp"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="110dp"
+        android:background="@drawable/avatar_ring" />
 
     <ImageView
         android:id="@+id/profile_image"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:layout_marginTop="140dp"
-        android:background="#0A0A0A"
-        android:scaleType="center"
-        android:src="@mipmap/ic_launcher"/>
-
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_alignTop="@id/avatar_ring"
+        android:layout_alignBottom="@id/avatar_ring"
+        android:layout_centerHorizontal="true"
+        android:scaleType="centerInside"
+        android:src="@mipmap/ic_launcher" />
 
     <TextView
         android:id="@+id/profile_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/profile_image"
-        android:layout_marginTop="21dp"
-        android:fontFamily="sans-serif-thin"
+        android:layout_below="@+id/avatar_ring"
+        android:layout_marginTop="24dp"
+        android:fontFamily="sans-serif-medium"
         android:gravity="center"
+        android:letterSpacing="0.02"
         android:maxLines="1"
         android:text="AppLock"
         android:textColor="#FFFFFF"
-        android:textSize="34sp"
+        android:textSize="26sp"
         tools:ignore="HardcodedText" />
 
     <TextView
-        android:id="@+id/alertError"
+        android:id="@+id/subtitle_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="280dp"
-        android:fontFamily="sans-serif-thin"
+        android:layout_below="@id/profile_name"
+        android:layout_marginTop="6dp"
+        android:fontFamily="sans-serif"
         android:gravity="center"
-        android:visibility="invisible"
-        android:text="Wrong Password"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        tools:ignore="HardcodedText"/>
-    <!--        android:layout_marginBottom="395dp"-->
-
+        android:text="Enter your PIN to continue"
+        android:textColor="#8A8D98"
+        android:textSize="13sp"
+        tools:ignore="HardcodedText" />
 
     <com.andrognito.pinlockview.IndicatorDots
         android:id="@+id/indicator_dots"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/profile_name"
+        android:layout_below="@id/subtitle_text"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="36dp" />
+        android:layout_marginTop="28dp" />
 
-    <!--        android:outlineSpotShadowColor="#000000"-->
+    <TextView
+        android:id="@+id/alertError"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/indicator_dots"
+        android:layout_marginTop="10dp"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="center"
+        android:text="Wrong Password"
+        android:textColor="#FF5C5C"
+        android:textSize="13sp"
+        android:visibility="invisible"
+        tools:ignore="HardcodedText" />
 
     <com.andrognito.pinlockview.PinLockView
         android:id="@+id/pin_lock_view"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/indicator_dots"
+        android:layout_below="@id/alertError"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="16dp"
-        android:textSize="34sp"
-        app:keypadButtonSize="72dp"
-        app:keypadButtonBackgroundDrawable="@drawable/shape"
+        android:layout_marginTop="18dp"
+        android:textSize="24sp"
+        app:keypadButtonBackgroundDrawable="@drawable/pin_button_bg"
+        app:keypadButtonSize="70dp"
         app:keypadShowDeleteButton="true"
         app:keypadTextColor="#FFFFFF"
-        app:keypadTextSize="18dp"
-        />
+        app:keypadTextSize="20sp" />
 
 </RelativeLayout>

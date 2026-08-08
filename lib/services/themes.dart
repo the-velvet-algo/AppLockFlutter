@@ -52,7 +52,7 @@ class CustomTheme {
     ),
     typography: Typography.material2021(),
     textTheme: TextTheme(
-      button: GoogleFonts.montserrat(
+      labelLarge: GoogleFonts.montserrat(
         fontWeight: FontWeight.w400,
         color: textSecondary,
         fontSize: 14.0,
@@ -61,25 +61,25 @@ class CustomTheme {
       // titleLarge: ,
       // titleMedium: ,
       // titleSmall: ,
-      subtitle1: GoogleFonts.epilogue(
+      titleMedium: GoogleFonts.epilogue(
         // fontSize: 16.0,
         fontWeight: FontWeight.w400,
       ),
-      bodyText1: GoogleFonts.epilogue(
+      bodyLarge: GoogleFonts.epilogue(
         // fontSize: 14.0,
         fontWeight: FontWeight.w400,
       ),
-      bodyText2: GoogleFonts.epilogue(
+      bodyMedium: GoogleFonts.epilogue(
         // fontSize: 12.0,
         fontWeight: FontWeight.w500,
       ),
 
-      headline1: GoogleFonts.epilogue(),
-      headline2: GoogleFonts.epilogue(),
-      headline3: GoogleFonts.epilogue(),
-      headline4: GoogleFonts.epilogue(),
-      headline5: GoogleFonts.epilogue(),
-      headline6: GoogleFonts.epilogue(),
+      displayLarge: GoogleFonts.epilogue(),
+      displayMedium: GoogleFonts.epilogue(),
+      displaySmall: GoogleFonts.epilogue(),
+      headlineMedium: GoogleFonts.epilogue(),
+      headlineSmall: GoogleFonts.epilogue(),
+      titleLarge: GoogleFonts.epilogue(),
     ),
     colorScheme: ColorScheme.fromSwatch(primarySwatch: colorCustom)
         .copyWith(background: backgroundDark)

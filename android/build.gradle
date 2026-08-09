@@ -20,6 +20,7 @@ subprojects {
                 def packageName = new groovy.xml.XmlSlurper().parse(manifestFile).@package.toString()
                 androidExt.namespace = packageName
             }
+            androidExt.compileSdkVersion 36
         }
     }
 }

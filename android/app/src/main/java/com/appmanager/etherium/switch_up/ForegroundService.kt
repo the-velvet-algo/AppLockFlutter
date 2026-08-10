@@ -2,6 +2,7 @@ package com.applockFlutter
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
@@ -39,14 +40,25 @@ class ForegroundService : Service() {
         val channel = NotificationChannel(
             channelId,
             "Channel human readable title",
-            NotificationManager.IMPORTANCE_DEFAULT
+            NotificationManager.IMPORTANCE_MIN
         )
+        channel.setShowBadge(false)
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
             channel
         )
+        // Explicit no-op tap target: points at a broadcast action nothing listens for,
+        // so tapping the notification body does nothing at all instead of falling back
+        // to whatever default behavior a given Android skin might otherwise apply.
+        val noOpIntent = PendingIntent.getBroadcast(
+            this, 0, Intent("com.applockFlutter.NOOP"),
+            PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("")
-            .setContentText("").build()
+            .setContentText("")
+            .setContentIntent(noOpIntent)
+            .setShowWhen(false)
+            .build()
         startForeground(1, notification)
         startMyOwnForeground()
 

@@ -89,8 +89,10 @@ class Window(
 				println("$pinCode---------------pincode")
 				// Remember that THIS specific app was unlocked, so ForegroundService
 				// won't re-prompt while the user keeps using it -- but will re-prompt
-				// the moment foreground moves anywhere else, even briefly.
+				// the moment foreground moves anywhere else, even briefly. Also clear
+				// the pending-lock watchdog so it stops re-asserting the overlay.
 				ForegroundService.unlockedPackage = protectedPackage
+				ForegroundService.pendingLockedPackage = null
 				close()
 			}else{
 				txtView!!.visibility = View.VISIBLE

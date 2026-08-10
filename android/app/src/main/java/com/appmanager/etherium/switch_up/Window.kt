@@ -68,6 +68,27 @@ class Window(
 		return (mView.windowToken != null && mView.parent != null)
 	}
 
+	// Unconditionally detaches and re-attaches the overlay so it reclaims the very top
+	// of the window z-order. open() alone isn't enough for this: it only re-adds the
+	// view if it was fully detached, but certain system gesture-navigation animations
+	// (the home/quick-switch "peek" gesture) can shuffle window z-order WITHOUT ever
+	// detaching our view, leaving it silently buried behind the animation even though
+	// isOpen() still reports true.
+	fun forceToFront() {
+		try {
+			if (mView.windowToken != null || mView.parent != null) {
+				mWindowManager.removeViewImmediate(mView)
+			}
+		} catch (e: Exception) {
+			// wasn't actually attached, nothing to remove
+		}
+		try {
+			mWindowManager.addView(mView, mParams)
+		} catch (e: Exception) {
+			e.printStackTrace()
+		}
+	}
+
 	fun close() {
 		try {
 			Handler(Looper.getMainLooper()).postDelayed({

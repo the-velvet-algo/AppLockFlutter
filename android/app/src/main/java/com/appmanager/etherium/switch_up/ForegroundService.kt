@@ -152,14 +152,14 @@ class ForegroundService : Service() {
             }
         }
 
-        // Watchdog: as long as we believe a lock is currently owed, keep (re-)asserting
-        // the overlay on every single tick. window.open() is already a safe no-op if the
-        // view is still attached, so this costs nothing when everything is fine, but
-        // self-heals within one tick (250ms) if the OS silently hid/dismissed the
-        // overlay without any real app switch ever happening underneath it.
+        // Watchdog: as long as we believe a lock is currently owed, unconditionally pull
+        // the overlay back to the front of the window stack on every single tick. This
+        // must be forceToFront() rather than open() -- the home/quick-switch gesture-nav
+        // "peek" animation can shuffle window z-order WITHOUT ever detaching our view,
+        // so open()'s "only re-add if detached" check silently does nothing in that case.
         if (pendingLockedPackage != null) {
             Handler(Looper.getMainLooper()).post {
-                window.open()
+                window.forceToFront()
             }
         }
     }

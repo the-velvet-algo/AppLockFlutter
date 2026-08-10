@@ -23,6 +23,12 @@ class Window(
 	private val mView: View
 	var pinCode: String = ""
 	var txtView: TextView? = null
+
+	// The package this overlay is currently protecting. Set by ForegroundService right
+	// before open() is called, and read back on a successful PIN so we know exactly
+	// which app to mark as "unlocked" (rather than assuming).
+	var protectedPackage: String? = null
+
 	private var mParams: WindowManager.LayoutParams? = null
 	private val mWindowManager: WindowManager
 	private val layoutInflater: LayoutInflater
@@ -81,6 +87,10 @@ class Window(
 			val dta: String = saveAppData.getString("password", "PASSWORD")!!
 			if(pinCode == dta){
 				println("$pinCode---------------pincode")
+				// Remember that THIS specific app was unlocked, so ForegroundService
+				// won't re-prompt while the user keeps using it -- but will re-prompt
+				// the moment foreground moves anywhere else, even briefly.
+				ForegroundService.unlockedPackage = protectedPackage
 				close()
 			}else{
 				txtView!!.visibility = View.VISIBLE

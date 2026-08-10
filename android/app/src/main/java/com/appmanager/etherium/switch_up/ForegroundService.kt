@@ -20,10 +20,19 @@ class ForegroundService : Service() {
     companion object {
         // The single locked package the user has successfully entered the PIN for and is
         // still actively using. Cleared the instant the foreground moves to ANY other
-        // package (including the launcher/recents UI during a quick swipe-peek), so a
-        // fast up-then-down recents gesture can no longer skip the PIN screen.
+        // package (another app, the launcher, or the recents/systemui overview UI).
         @Volatile
         var unlockedPackage: String? = null
+
+        // The locked package we currently believe SHOULD be gated behind the PIN screen
+        // right now (set the moment it's detected, cleared on a correct PIN). As long as
+        // this is non-null, the watchdog below keeps re-asserting the overlay every tick
+        // -- so even if the OS silently hides/dismisses it during a gesture-navigation
+        // "peek" animation (which can happen WITHOUT any actual app switch, meaning our
+        // usual detection logic never fires), it gets pulled back on screen almost
+        // immediately instead of leaving the real app exposed underneath.
+        @Volatile
+        var pendingLockedPackage: String? = null
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -31,7 +40,7 @@ class ForegroundService : Service() {
     }
     var timer: Timer = Timer()
     var isTimerStarted = false
-    var timerReload: Long = 500
+    var timerReload: Long = 250
     private var mHomeWatcher = HomeWatcher(this)
 
     override fun onCreate() {
@@ -46,9 +55,6 @@ class ForegroundService : Service() {
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
             channel
         )
-        // Explicit no-op tap target: points at a broadcast action nothing listens for,
-        // so tapping the notification body does nothing at all instead of falling back
-        // to whatever default behavior a given Android skin might otherwise apply.
         val noOpIntent = PendingIntent.getBroadcast(
             this, 0, Intent("com.applockFlutter.NOOP"),
             PendingIntent.FLAG_IMMUTABLE
@@ -74,6 +80,7 @@ class ForegroundService : Service() {
             override fun onHomePressed() {
                 println("onHomePressed")
                 unlockedPackage = null
+                pendingLockedPackage = null
                 if (window.isOpen()) {
                     window.close()
                 }
@@ -81,6 +88,7 @@ class ForegroundService : Service() {
             override fun onHomeLongPressed() {
                 println("onHomeLongPressed")
                 unlockedPackage = null
+                pendingLockedPackage = null
                 if (window.isOpen()) {
                     window.close()
                 }
@@ -119,9 +127,7 @@ class ForegroundService : Service() {
         val event = UsageEvents.Event()
 
         // Walk every event in this polling window and remember only the LAST
-        // ACTIVITY_RESUMED package seen. That is the actual current foreground app,
-        // regardless of whether the previous app ever received a matching
-        // ACTIVITY_STOPPED event (a fast recents swipe can pause without stopping it).
+        // ACTIVITY_RESUMED package seen -- the actual current foreground app.
         var latestResumedPackage: String? = null
         while (usageEvents.hasNextEvent()) {
             usageEvents.getNextEvent(event)
@@ -130,25 +136,31 @@ class ForegroundService : Service() {
             }
         }
 
-        // Nothing changed foreground this tick -> nothing to do.
-        if (latestResumedPackage == null) return
-
-        if (lockedAppList.contains(latestResumedPackage)) {
-            if (unlockedPackage != latestResumedPackage) {
-                // Arriving at a locked app that hasn't been unlocked yet on this visit
-                // (fresh open, OR returning from anywhere else, including a recents peek).
-                window.protectedPackage = latestResumedPackage
-                window.txtView!!.visibility = View.INVISIBLE
-                Handler(Looper.getMainLooper()).post {
-                    window.open()
+        if (latestResumedPackage != null) {
+            if (lockedAppList.contains(latestResumedPackage)) {
+                if (unlockedPackage != latestResumedPackage && pendingLockedPackage != latestResumedPackage) {
+                    // Fresh arrival at a locked app that hasn't been unlocked yet on this visit.
+                    pendingLockedPackage = latestResumedPackage
+                    window.protectedPackage = latestResumedPackage
+                    window.txtView?.visibility = View.INVISIBLE
                 }
+            } else {
+                // Foreground genuinely moved to a different, non-locked package
+                // (another app or the launcher) -> nothing left to gate.
+                unlockedPackage = null
+                pendingLockedPackage = null
             }
-            // else: still inside the same app the user already unlocked -> don't re-prompt.
-        } else {
-            // Foreground moved to a different package entirely (another app, the
-            // launcher, or the recents/systemui overview UI) -> forget the unlocked
-            // memory so returning to the locked app always asks again.
-            unlockedPackage = null
+        }
+
+        // Watchdog: as long as we believe a lock is currently owed, keep (re-)asserting
+        // the overlay on every single tick. window.open() is already a safe no-op if the
+        // view is still attached, so this costs nothing when everything is fine, but
+        // self-heals within one tick (250ms) if the OS silently hid/dismissed the
+        // overlay without any real app switch ever happening underneath it.
+        if (pendingLockedPackage != null) {
+            Handler(Looper.getMainLooper()).post {
+                window.open()
+            }
         }
     }
 }

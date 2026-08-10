@@ -15,13 +15,22 @@ import java.util.*
 
 
 class ForegroundService : Service() {
+
+    companion object {
+        // The single locked package the user has successfully entered the PIN for and is
+        // still actively using. Cleared the instant the foreground moves to ANY other
+        // package (including the launcher/recents UI during a quick swipe-peek), so a
+        // fast up-then-down recents gesture can no longer skip the PIN screen.
+        @Volatile
+        var unlockedPackage: String? = null
+    }
+
     override fun onBind(intent: Intent): IBinder? {
         throw UnsupportedOperationException("")
     }
     var timer: Timer = Timer()
     var isTimerStarted = false
-    var timerReload:Long = 500
-    var currentAppActivityList = arrayListOf<String>()
+    var timerReload: Long = 500
     private var mHomeWatcher = HomeWatcher(this)
 
     override fun onCreate() {
@@ -52,15 +61,15 @@ class ForegroundService : Service() {
         mHomeWatcher.setOnHomePressedListener(object : HomeWatcher.OnHomePressedListener {
             override fun onHomePressed() {
                 println("onHomePressed")
-                currentAppActivityList.clear()
-                if(window.isOpen()){
+                unlockedPackage = null
+                if (window.isOpen()) {
                     window.close()
                 }
             }
             override fun onHomeLongPressed() {
                 println("onHomeLongPressed")
-                currentAppActivityList.clear()
-                if(window.isOpen()){
+                unlockedPackage = null
+                if (window.isOpen()) {
                     window.close()
                 }
             }
@@ -75,7 +84,7 @@ class ForegroundService : Service() {
         super.onDestroy()
     }
 
-    private fun timerRun(window:Window){
+    private fun timerRun(window: Window) {
         timer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 isTimerStarted = true
@@ -85,10 +94,11 @@ class ForegroundService : Service() {
     }
 
 
-    fun isServiceRunning(window:Window) {
+    fun isServiceRunning(window: Window) {
 
         val saveAppData: SharedPreferences = applicationContext.getSharedPreferences("save_app_data", Context.MODE_PRIVATE)
-        val lockedAppList: List<*> = saveAppData.getString("app_data", "AppList")!!.replace("[", "").replace("]", "").split(",")
+        val lockedAppList: List<String> = saveAppData.getString("app_data", "AppList")!!
+            .replace("[", "").replace("]", "").split(",").map { it.trim() }
 
         val mUsageStatsManager = getSystemService(USAGE_STATS_SERVICE) as UsageStatsManager
         val time = System.currentTimeMillis()
@@ -96,33 +106,37 @@ class ForegroundService : Service() {
         val usageEvents = mUsageStatsManager.queryEvents(time - timerReload, time)
         val event = UsageEvents.Event()
 
-        run breaking@{
-            while (usageEvents.hasNextEvent()) {
-                usageEvents.getNextEvent(event)
-                for (element in lockedAppList) if(event.packageName.toString().trim() == element.toString().trim()){
-                    println("${event.className} $element ${event.eventType}-----------Event Type")
-                        if(event.eventType == UsageEvents.Event.ACTIVITY_RESUMED && currentAppActivityList.isEmpty())  {
-                            currentAppActivityList.add(event.className)
-                            println("$currentAppActivityList-----List--added")
-                            window.txtView!!.visibility = View.INVISIBLE
-                            Handler(Looper.getMainLooper()).post {
-                                window.open()
-                            }
-                            return@breaking
-                        }else if(event.eventType == UsageEvents.Event.ACTIVITY_RESUMED){
-                            if(!currentAppActivityList.contains(event.className)){
-                                currentAppActivityList.add(event.className)
-                                println("$currentAppActivityList-----List--added")
-                            }
-                        }else if(event.eventType == UsageEvents.Event.ACTIVITY_STOPPED ){
-                            if(currentAppActivityList.contains(event.className)){
-                                currentAppActivityList.remove(event.className)
-                                println("$currentAppActivityList-----List--remained")
-                            }
-                        }
+        // Walk every event in this polling window and remember only the LAST
+        // ACTIVITY_RESUMED package seen. That is the actual current foreground app,
+        // regardless of whether the previous app ever received a matching
+        // ACTIVITY_STOPPED event (a fast recents swipe can pause without stopping it).
+        var latestResumedPackage: String? = null
+        while (usageEvents.hasNextEvent()) {
+            usageEvents.getNextEvent(event)
+            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                latestResumedPackage = event.packageName
+            }
+        }
+
+        // Nothing changed foreground this tick -> nothing to do.
+        if (latestResumedPackage == null) return
+
+        if (lockedAppList.contains(latestResumedPackage)) {
+            if (unlockedPackage != latestResumedPackage) {
+                // Arriving at a locked app that hasn't been unlocked yet on this visit
+                // (fresh open, OR returning from anywhere else, including a recents peek).
+                window.protectedPackage = latestResumedPackage
+                window.txtView!!.visibility = View.INVISIBLE
+                Handler(Looper.getMainLooper()).post {
+                    window.open()
                 }
             }
+            // else: still inside the same app the user already unlocked -> don't re-prompt.
+        } else {
+            // Foreground moved to a different package entirely (another app, the
+            // launcher, or the recents/systemui overview UI) -> forget the unlocked
+            // memory so returning to the locked app always asks again.
+            unlockedPackage = null
         }
     }
 }
-

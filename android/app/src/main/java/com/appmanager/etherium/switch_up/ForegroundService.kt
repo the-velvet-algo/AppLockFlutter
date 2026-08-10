@@ -7,10 +7,7 @@ import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.*
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
-import android.view.View
 import androidx.core.app.NotificationCompat
 import java.util.*
 
@@ -20,19 +17,10 @@ class ForegroundService : Service() {
     companion object {
         // The single locked package the user has successfully entered the PIN for and is
         // still actively using. Cleared the instant the foreground moves to ANY other
-        // package (another app, the launcher, or the recents/systemui overview UI).
+        // package (another app, the launcher, or our own PinCodeActivity while it's
+        // still awaiting a correct PIN).
         @Volatile
         var unlockedPackage: String? = null
-
-        // The locked package we currently believe SHOULD be gated behind the PIN screen
-        // right now (set the moment it's detected, cleared on a correct PIN). As long as
-        // this is non-null, the watchdog below keeps re-asserting the overlay every tick
-        // -- so even if the OS silently hides/dismisses it during a gesture-navigation
-        // "peek" animation (which can happen WITHOUT any actual app switch, meaning our
-        // usual detection logic never fires), it gets pulled back on screen almost
-        // immediately instead of leaving the real app exposed underneath.
-        @Volatile
-        var pendingLockedPackage: String? = null
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -40,7 +28,7 @@ class ForegroundService : Service() {
     }
     var timer: Timer = Timer()
     var isTimerStarted = false
-    var timerReload: Long = 250
+    var timerReload: Long = 500
     private var mHomeWatcher = HomeWatcher(this)
 
     override fun onCreate() {
@@ -75,27 +63,16 @@ class ForegroundService : Service() {
     }
 
     private fun startMyOwnForeground() {
-        val window = Window(this)
         mHomeWatcher.setOnHomePressedListener(object : HomeWatcher.OnHomePressedListener {
             override fun onHomePressed() {
-                println("onHomePressed")
                 unlockedPackage = null
-                pendingLockedPackage = null
-                if (window.isOpen()) {
-                    window.close()
-                }
             }
             override fun onHomeLongPressed() {
-                println("onHomeLongPressed")
                 unlockedPackage = null
-                pendingLockedPackage = null
-                if (window.isOpen()) {
-                    window.close()
-                }
             }
         })
         mHomeWatcher.startWatch()
-        timerRun(window)
+        timerRun()
     }
 
     override fun onDestroy() {
@@ -104,17 +81,17 @@ class ForegroundService : Service() {
         super.onDestroy()
     }
 
-    private fun timerRun(window: Window) {
+    private fun timerRun() {
         timer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 isTimerStarted = true
-                isServiceRunning(window)
+                isServiceRunning()
             }
         }, 0, timerReload)
     }
 
 
-    fun isServiceRunning(window: Window) {
+    fun isServiceRunning() {
 
         val saveAppData: SharedPreferences = applicationContext.getSharedPreferences("save_app_data", Context.MODE_PRIVATE)
         val lockedAppList: List<String> = saveAppData.getString("app_data", "AppList")!!
@@ -136,31 +113,31 @@ class ForegroundService : Service() {
             }
         }
 
-        if (latestResumedPackage != null) {
-            if (lockedAppList.contains(latestResumedPackage)) {
-                if (unlockedPackage != latestResumedPackage && pendingLockedPackage != latestResumedPackage) {
-                    // Fresh arrival at a locked app that hasn't been unlocked yet on this visit.
-                    pendingLockedPackage = latestResumedPackage
-                    window.protectedPackage = latestResumedPackage
-                    window.txtView?.visibility = View.INVISIBLE
-                }
-            } else {
-                // Foreground genuinely moved to a different, non-locked package
-                // (another app or the launcher) -> nothing left to gate.
-                unlockedPackage = null
-                pendingLockedPackage = null
-            }
-        }
+        if (latestResumedPackage == null) return
 
-        // Watchdog: as long as we believe a lock is currently owed, unconditionally pull
-        // the overlay back to the front of the window stack on every single tick. This
-        // must be forceToFront() rather than open() -- the home/quick-switch gesture-nav
-        // "peek" animation can shuffle window z-order WITHOUT ever detaching our view,
-        // so open()'s "only re-add if detached" check silently does nothing in that case.
-        if (pendingLockedPackage != null) {
-            Handler(Looper.getMainLooper()).post {
-                window.forceToFront()
+        if (lockedAppList.contains(latestResumedPackage)) {
+            if (unlockedPackage != latestResumedPackage) {
+                // Launch a REAL activity on top of the locked app, rather than a
+                // floating overlay. This is the architectural fix for the
+                // gesture-navigation "peek at previous app" bypass: a genuine
+                // foreground Activity is what Android's own transition animations
+                // show a live snapshot of, so the peek gesture now shows OUR pin
+                // screen instead of the app underneath -- there's no overlay
+                // z-order for the system to shuffle around in the first place.
+                // singleInstance launchMode makes repeat calls here (e.g. this
+                // same locked app resuming again before it's unlocked) safely
+                // bring the existing instance back to front instead of duplicating it.
+                val lockIntent = Intent(this, PinCodeActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    putExtra(PinCodeActivity.EXTRA_PACKAGE_TO_UNLOCK, latestResumedPackage)
+                }
+                startActivity(lockIntent)
             }
+        } else {
+            // Foreground moved to a different, non-locked package (another app, the
+            // launcher, or our own PinCodeActivity while still awaiting a PIN) ->
+            // forget the unlocked memory so returning to the locked app always asks again.
+            unlockedPackage = null
         }
     }
 }

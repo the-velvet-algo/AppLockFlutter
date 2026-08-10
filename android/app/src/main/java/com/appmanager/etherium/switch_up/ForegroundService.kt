@@ -7,7 +7,10 @@ import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.*
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.view.View
 import androidx.core.app.NotificationCompat
 import java.util.*
 
@@ -17,8 +20,8 @@ class ForegroundService : Service() {
     companion object {
         // The single locked package the user has successfully entered the PIN for and is
         // still actively using. Cleared the instant the foreground moves to ANY other
-        // package (another app, the launcher, or our own PinCodeActivity while it's
-        // still awaiting a correct PIN).
+        // package (including the launcher/recents UI during a quick swipe-peek), so a
+        // fast up-then-down recents gesture can no longer skip the PIN screen.
         @Volatile
         var unlockedPackage: String? = null
     }
@@ -43,6 +46,9 @@ class ForegroundService : Service() {
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
             channel
         )
+        // Explicit no-op tap target: points at a broadcast action nothing listens for,
+        // so tapping the notification body does nothing at all instead of falling back
+        // to whatever default behavior a given Android skin might otherwise apply.
         val noOpIntent = PendingIntent.getBroadcast(
             this, 0, Intent("com.applockFlutter.NOOP"),
             PendingIntent.FLAG_IMMUTABLE
@@ -63,16 +69,25 @@ class ForegroundService : Service() {
     }
 
     private fun startMyOwnForeground() {
+        val window = Window(this)
         mHomeWatcher.setOnHomePressedListener(object : HomeWatcher.OnHomePressedListener {
             override fun onHomePressed() {
+                println("onHomePressed")
                 unlockedPackage = null
+                if (window.isOpen()) {
+                    window.close()
+                }
             }
             override fun onHomeLongPressed() {
+                println("onHomeLongPressed")
                 unlockedPackage = null
+                if (window.isOpen()) {
+                    window.close()
+                }
             }
         })
         mHomeWatcher.startWatch()
-        timerRun()
+        timerRun(window)
     }
 
     override fun onDestroy() {
@@ -81,17 +96,17 @@ class ForegroundService : Service() {
         super.onDestroy()
     }
 
-    private fun timerRun() {
+    private fun timerRun(window: Window) {
         timer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 isTimerStarted = true
-                isServiceRunning()
+                isServiceRunning(window)
             }
         }, 0, timerReload)
     }
 
 
-    fun isServiceRunning() {
+    fun isServiceRunning(window: Window) {
 
         val saveAppData: SharedPreferences = applicationContext.getSharedPreferences("save_app_data", Context.MODE_PRIVATE)
         val lockedAppList: List<String> = saveAppData.getString("app_data", "AppList")!!
@@ -104,7 +119,9 @@ class ForegroundService : Service() {
         val event = UsageEvents.Event()
 
         // Walk every event in this polling window and remember only the LAST
-        // ACTIVITY_RESUMED package seen -- the actual current foreground app.
+        // ACTIVITY_RESUMED package seen. That is the actual current foreground app,
+        // regardless of whether the previous app ever received a matching
+        // ACTIVITY_STOPPED event (a fast recents swipe can pause without stopping it).
         var latestResumedPackage: String? = null
         while (usageEvents.hasNextEvent()) {
             usageEvents.getNextEvent(event)
@@ -113,30 +130,24 @@ class ForegroundService : Service() {
             }
         }
 
+        // Nothing changed foreground this tick -> nothing to do.
         if (latestResumedPackage == null) return
 
         if (lockedAppList.contains(latestResumedPackage)) {
             if (unlockedPackage != latestResumedPackage) {
-                // Launch a REAL activity on top of the locked app, rather than a
-                // floating overlay. This is the architectural fix for the
-                // gesture-navigation "peek at previous app" bypass: a genuine
-                // foreground Activity is what Android's own transition animations
-                // show a live snapshot of, so the peek gesture now shows OUR pin
-                // screen instead of the app underneath -- there's no overlay
-                // z-order for the system to shuffle around in the first place.
-                // singleInstance launchMode makes repeat calls here (e.g. this
-                // same locked app resuming again before it's unlocked) safely
-                // bring the existing instance back to front instead of duplicating it.
-                val lockIntent = Intent(this, PinCodeActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    putExtra(PinCodeActivity.EXTRA_PACKAGE_TO_UNLOCK, latestResumedPackage)
+                // Arriving at a locked app that hasn't been unlocked yet on this visit
+                // (fresh open, OR returning from anywhere else, including a recents peek).
+                window.protectedPackage = latestResumedPackage
+                window.txtView!!.visibility = View.INVISIBLE
+                Handler(Looper.getMainLooper()).post {
+                    window.open()
                 }
-                startActivity(lockIntent)
             }
+            // else: still inside the same app the user already unlocked -> don't re-prompt.
         } else {
-            // Foreground moved to a different, non-locked package (another app, the
-            // launcher, or our own PinCodeActivity while still awaiting a PIN) ->
-            // forget the unlocked memory so returning to the locked app always asks again.
+            // Foreground moved to a different package entirely (another app, the
+            // launcher, or the recents/systemui overview UI) -> forget the unlocked
+            // memory so returning to the locked app always asks again.
             unlockedPackage = null
         }
     }
